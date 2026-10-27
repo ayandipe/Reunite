@@ -26,5 +26,15 @@
     "birth_year": 1990,
     "known_contacts": ["x1"],
     "photo_path": null
+  },
+  {
+
+    "id": "c1_twin",
+    "phone": "+9647701234471",
+    "hometown": "Mosul",
+    "alias_name": "Layla",
+    "birth_year": 1989,
+    "known_contacts": ["x1"],
+    "photo_path": null
   }
 ]

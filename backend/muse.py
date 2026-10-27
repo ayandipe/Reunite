@@ -47,3 +47,29 @@ def _live_parse(raw_text: str) -> dict:
         if text.startswith("json"):
             text = text[4:]
     return json.loads(text)
+
+def resolve_ambiguity(seeker: dict, top1: dict, top2: dict) -> str:
+    """Return the candidate_id Muse Wonder picks. Mock picks top1; live calls the API."""
+    if MUSE_MODE == "mock":
+        return top1["candidate_id"]
+    return _live_resolve(seeker, top1, top2)
+
+
+def _live_resolve(seeker: dict, top1: dict, top2: dict) -> str:
+    from openai import OpenAI
+    client = OpenAI(base_url="https://api.meta.ai/v1", api_key=os.environ["MODEL_API_KEY"])
+    prompt = (
+        f"Seeker memory parsed: {seeker}\n"
+        f"Candidate A: {top1}\n"
+        f"Candidate B: {top2}\n"
+        "Which candidate is more likely the same person? "
+        "Answer with only 'A' or 'B'."
+    )
+    resp = client.responses.create(
+        model="muse-wonder-1.0",
+        input=prompt,
+        reasoning={"effort": "high"},
+        max_output_tokens=10,
+    )
+    answer = resp.output_text.strip().upper()
+    return top1["candidate_id"] if answer.startswith("A") else top2["candidate_id"]

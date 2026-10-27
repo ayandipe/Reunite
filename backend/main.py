@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 import os, uuid
 
 from backend.matching import rank_candidates, is_ambiguous, threshold_met
-from backend.muse import parse_memory, MUSE_MODE
+from backend.muse import parse_memory, MUSE_MODE, resolve_ambiguity
 import json
 
 from backend.models import SessionLocal, SeekerRequest, init_db
@@ -102,13 +102,22 @@ def match(request_id: str):
             candidates = json.load(f)
 
         ranked = rank_candidates(seeker, candidates)
-        top = ranked[0]
+        if is_ambiguous(ranked):
+            winner_id = resolve_ambiguity(seeker, ranked[0], ranked[1])
+            winner = next(r for r in ranked if r["candidate_id"] == winner_id)
+            resolved_by = "muse_wonder"
+        else:
+            winner = ranked[0]
+            resolved_by = "engine"
+
         return {
             "request_id": request_id,
-            "top_score": top["score"],
-            "breakdown": top["breakdown"],
-            "threshold_met": threshold_met(top["score"]),
+            "top_score": winner["score"],
+            "winner_id": winner["candidate_id"],
+            "breakdown": winner["breakdown"],
+            "threshold_met": threshold_met(winner["score"]),
             "ambiguous": is_ambiguous(ranked),
+            "resolved_by": resolved_by,
             "candidate_count": len(ranked),
         }
     finally:
