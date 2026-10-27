@@ -3,8 +3,10 @@ from sqlalchemy import Column, String, DateTime, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import os
+import pathlib
+BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
+DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR}/backend/reunite.db")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./backend/reunite.db")
 
 engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)

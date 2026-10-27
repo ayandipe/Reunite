@@ -1,4 +1,7 @@
 # backend/main.py
+from fastapi import UploadFile, File
+from fastapi.responses import FileResponse
+from backend.sam import redact_image
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -14,6 +17,7 @@ from backend.muse import parse_memory, MUSE_MODE, resolve_ambiguity
 import json
 
 from backend.models import SessionLocal, SeekerRequest, init_db
+from backend.sam import UPLOAD_REDACTED
 
 load_dotenv()
 
@@ -170,3 +174,27 @@ def decline(token: str):
     if "error" in result:
         raise HTTPException(status_code=410, detail=result["error"])
     return result
+
+
+
+@app.post("/api/respond/{token}/verify")
+async def verify(token: str, file: UploadFile = File(...)):
+    row = get_token(token)
+    if not row:
+        raise HTTPException(status_code=404, detail="not found")
+    if row.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="expired")
+    image_bytes = await file.read()
+    result = redact_image(image_bytes, prompt="face")
+    return {
+        "redacted_url": f"/api/redacted/{os.path.basename(result['redacted_path'])}",
+        "boxes": result["boxes"],
+    }
+
+
+@app.get("/api/redacted/{filename}")
+def serve_redacted(filename: str):
+    path = os.path.join(UPLOAD_REDACTED, filename)
+    if not os.path.exists(path):
+        raise HTTPException(status_code=404, detail="not found")
+    return FileResponse(path)
