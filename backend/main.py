@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os, uuid
+from backend.crypto import fernet
+from backend.consent import create_token, get_token, respond as consent_respond
+from datetime import datetime
 
 from backend.matching import rank_candidates, is_ambiguous, threshold_met
 from backend.muse import parse_memory, MUSE_MODE, resolve_ambiguity
@@ -22,7 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-fernet = Fernet(os.environ["FERNET_KEY"])
+
 init_db()
 
 
@@ -122,3 +125,48 @@ def match(request_id: str):
         }
     finally:
         db.close()
+
+
+@app.post("/api/consent/{request_id}")
+def issue_consent(request_id: str, candidate_id: str):
+    """After a match passes threshold, issue a token. In production: admin-only."""
+    db = SessionLocal()
+    try:
+        row = db.query(SeekerRequest).filter(SeekerRequest.id == request_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+    finally:
+        db.close()
+    token = create_token(request_id, candidate_id)
+    return {"token": token, "link": f"/api/respond/{token}"}
+
+
+@app.get("/api/respond/{token}")
+def view_request(token: str):
+    row = get_token(token)
+    if not row:
+        raise HTTPException(status_code=404, detail="not found")
+    if row.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=410, detail="expired")
+    if row.used == "true":
+        raise HTTPException(status_code=410, detail="already used")
+    return {
+        "redacted_summary": "A seeker is looking for a sibling last seen near Mosul. They remember the last four digits of a phone number ending in 4471.",
+        "expires_at": row.expires_at.isoformat(),
+    }
+
+
+@app.post("/api/respond/{token}/accept")
+def accept(token: str):
+    result = consent_respond(token, "accepted")
+    if "error" in result:
+        raise HTTPException(status_code=410, detail=result["error"])
+    return result
+
+
+@app.post("/api/respond/{token}/decline")
+def decline(token: str):
+    result = consent_respond(token, "declined")
+    if "error" in result:
+        raise HTTPException(status_code=410, detail=result["error"])
+    return result

@@ -22,5 +22,18 @@ class SeekerRequest(Base):
     status = Column(String, default="filed")           # filed | matched | accepted | declined | expired
 
 
+class ConsentToken(Base):
+    __tablename__ = "consent_tokens"
+
+    id = Column(String, primary_key=True)
+    match_id = Column(String, nullable=False)      # placeholder until Match table exists
+    token = Column(String, unique=True, nullable=False, index=True)
+    request_id = Column(String, nullable=False)
+    candidate_id = Column(String, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used = Column(String, default="false")         # "false" | "true"
+    response = Column(String, default="pending")   # pending | accepted | declined
+    responded_at = Column(DateTime, nullable=True)
+
 def init_db():
     Base.metadata.create_all(bind=engine)
