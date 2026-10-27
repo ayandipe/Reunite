@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os, uuid
+
+from backend.matching import rank_candidates, is_ambiguous, threshold_met
 from backend.muse import parse_memory, MUSE_MODE
 import json
 
@@ -81,5 +83,33 @@ def parse_request(request_id: str):
         db.commit()
         # Return only a status to the client — never the parsed content
         return {"request_id": request_id, "parsed": True, "mode": "mock" if MUSE_MODE == "mock" else "live"}
+    finally:
+        db.close()
+
+
+
+@app.post("/api/match/{request_id}")
+def match(request_id: str):
+    db = SessionLocal()
+    try:
+        row = db.query(SeekerRequest).filter(SeekerRequest.id == request_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+        raw = fernet.decrypt(row.raw_text_enc.encode()).decode()
+        seeker = parse_memory(raw)
+
+        with open("backend/seed_graph.json") as f:
+            candidates = json.load(f)
+
+        ranked = rank_candidates(seeker, candidates)
+        top = ranked[0]
+        return {
+            "request_id": request_id,
+            "top_score": top["score"],
+            "breakdown": top["breakdown"],
+            "threshold_met": threshold_met(top["score"]),
+            "ambiguous": is_ambiguous(ranked),
+            "candidate_count": len(ranked),
+        }
     finally:
         db.close()

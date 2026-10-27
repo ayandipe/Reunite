@@ -1,0 +1,30 @@
+[
+  {
+    "id": "c1",
+    "display_name_enc": "ignored-for-now",
+    "phone": "+9647701234471",
+    "hometown": "Mosul",
+    "alias_name": "Layla",
+    "birth_year": 1988,
+    "known_contacts": ["x1", "x2"],
+    "photo_path": null
+  },
+  {
+    "id": "c_trap_a",
+    "phone": "+9647709991234",
+    "hometown": "Mosul",
+    "alias_name": "Laila",
+    "birth_year": 1992,
+    "known_contacts": ["x9"],
+    "photo_path": null
+  },
+  {
+    "id": "c_trap_b",
+    "phone": "+9647705554471",
+    "hometown": "Baghdad",
+    "alias_name": "Layla",
+    "birth_year": 1990,
+    "known_contacts": ["x1"],
+    "photo_path": null
+  }
+]
