@@ -5,6 +5,8 @@ from pydantic import BaseModel
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os, uuid
+from backend.muse import parse_memory, MUSE_MODE
+import json
 
 from backend.models import SessionLocal, SeekerRequest, init_db
 
@@ -60,5 +62,24 @@ def status(request_id: str):
         if not row:
             raise HTTPException(status_code=404, detail="not found")
         return {"status": row.status}
+    finally:
+        db.close()
+
+
+
+@app.post("/api/parse/{request_id}")
+def parse_request(request_id: str):
+    db = SessionLocal()
+    try:
+        row = db.query(SeekerRequest).filter(SeekerRequest.id == request_id).first()
+        if not row:
+            raise HTTPException(status_code=404, detail="not found")
+        raw = fernet.decrypt(row.raw_text_enc.encode()).decode()
+        parsed = parse_memory(raw)
+        # Encrypt and store the parsed JSON back on the row
+        row.raw_text_enc = row.raw_text_enc  # keep original ciphertext
+        db.commit()
+        # Return only a status to the client — never the parsed content
+        return {"request_id": request_id, "parsed": True, "mode": "mock" if MUSE_MODE == "mock" else "live"}
     finally:
         db.close()
