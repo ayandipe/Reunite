@@ -1,6 +1,7 @@
 # backend/muse.py
 import os
 import json
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -14,14 +15,71 @@ def parse_memory(raw_text: str) -> dict:
     return _live_parse(raw_text)
 
 def _mock_parse(raw_text: str) -> dict:
-    # Deterministic output for dev/testing — swap for _live_parse in demo
+    # Keyword extraction for dev/testing — deterministic, no API calls.
+    text = raw_text or ""
+
+    birth_year = None
+    year_match = re.search(r"\b(19\d{2}|20\d{2})\b", text)
+    if year_match:
+        birth_year = int(year_match.group(1))
+
+    phone_suffix = None
+    year_text = year_match.group(1) if year_match else None
+    phone_groups = [
+        g for g in re.findall(r"\d{4,}", text) if g != year_text
+    ]
+    if phone_groups:
+        phone_suffix = phone_groups[-1][-4:]
+
+    hometown = None
+    for known in ("Mosul", "Baghdad"):
+        if re.search(r"\b" + known + r"\b", text, re.IGNORECASE):
+            hometown = known
+            break
+
+    relationship = None
+    rel_match = re.search(
+        r"\b(sister|brother|mother|father|aunt|uncle|cousin|friend|"
+        r"wife|husband|sibling)\b",
+        text,
+        re.IGNORECASE,
+    )
+    if rel_match:
+        relationship = rel_match.group(1).lower()
+
+    stop = {
+        "my", "looking", "searching", "seeking", "find", "for",
+        "in", "from", "near", "old", "market", "phone", "born", "ended",
+        "sister", "brother", "mother", "father", "aunt", "uncle",
+        "cousin", "friend", "wife", "husband", "sibling",
+        "mosul", "baghdad",
+    }
+    name = None
+    cue_match = re.search(
+        r"(?:\bsister\b|\bbrother\b|\bmother\b|\bfather\b|\baunt\b|"
+        r"\buncle\b|\bcousin\b|\bfriend\b|\bwife\b|\bhusband\b|"
+        r"\bsibling\b|\blooking\s+for\b|\bsearching\s+for\b|"
+        r"\bseeking\b|\bfind\b)\s+([A-Za-z]+)",
+        text,
+        re.IGNORECASE,
+    )
+    if cue_match:
+        candidate = re.sub(r"[^A-Za-z]", "", cue_match.group(1))
+        if candidate and candidate.lower() not in stop:
+            name = candidate.capitalize()
+    if name is None:
+        for word in re.findall(r"\b([A-Z][a-z]+)\b", text):
+            if word.lower() not in stop:
+                name = word
+                break
+
     return {
-        "name": "Layla",
-        "relationship": "sister",
-        "hometown": "Mosul",
-        "phone_suffix": "4471",
-        "birth_year": 1988,
-        "confidence": 0.9,
+        "name": name,
+        "relationship": relationship,
+        "hometown": hometown,
+        "phone_suffix": phone_suffix,
+        "birth_year": birth_year,
+        "confidence": 0.9 if name else 0.5,
     }
 
 def _live_parse(raw_text: str) -> dict:
