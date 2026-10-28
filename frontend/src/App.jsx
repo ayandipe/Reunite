@@ -1,21 +1,21 @@
-import { useEffect, useState } from 'react'
-import axios from 'axios'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import Seeker from './screens/Seeker'
+import Respond from './screens/Respond'
+import Admin from './screens/Admin'
 import './App.css'
 
 export default function App() {
-  const [status, setStatus] = useState('checking...')
-
-  useEffect(() => {
-    axios.get('http://localhost:8000/api/health')
-      .then(res => setStatus(res.data.ok ? 'backend reachable' : 'backend responded but not ok'))
-      .catch(() => setStatus('backend unreachable'))
-  }, [])
-
   return (
-    <main style={{ padding: 40, fontFamily: 'system-ui' }}>
-      <h1>Reunite</h1>
-      <p>Privacy-first family reconnection bridge.</p>
-      <p>Backend status: <strong>{status}</strong></p>
-    </main>
+    <BrowserRouter>
+      <nav style={{ padding: '12px 24px', borderBottom: '1px solid #ddd', display: 'flex', gap: 16 }}>
+        <Link to="/">Seeker</Link>
+        <Link to="/admin">Admin (demo)</Link>
+      </nav>
+      <Routes>
+        <Route path="/" element={<Seeker />} />
+        <Route path="/respond/:token" element={<Respond />} />
+        <Route path="/admin" element={<Admin />} />
+      </Routes>
+    </BrowserRouter>
   )
 }
