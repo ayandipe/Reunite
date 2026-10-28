@@ -9,7 +9,12 @@ from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 import os, uuid
 from backend.crypto import fernet
-from backend.consent import create_token, get_token, respond as consent_respond
+from backend.consent import (
+    create_token,
+    get_token,
+    respond as consent_respond,
+    verify_answer as consent_verify_answer,
+)
 from datetime import datetime
 
 from backend.matching import rank_candidates, is_ambiguous, threshold_met
@@ -161,8 +166,36 @@ def view_request(token: str):
     }
 
 
+class VerifyAnswer(BaseModel):
+    answer: str
+
+
+@app.post("/api/respond/{token}/verify-answer")
+def verify_challenge(token: str, body: VerifyAnswer):
+    result = consent_verify_answer(token, body.answer)
+    if result.get("verified"):
+        return result
+    err = result.get("error")
+    if err == "not_found":
+        raise HTTPException(status_code=404, detail="not found")
+    if err == "incorrect":
+        raise HTTPException(status_code=403, detail="incorrect")
+    if err == "locked":
+        raise HTTPException(status_code=410, detail="locked")
+    raise HTTPException(status_code=410, detail=err)
+
+
+def _require_verified(token: str):
+    row = get_token(token)
+    if not row:
+        raise HTTPException(status_code=404, detail="not found")
+    if not row.verified:
+        raise HTTPException(status_code=403, detail="verification_required")
+
+
 @app.post("/api/respond/{token}/accept")
 def accept(token: str):
+    _require_verified(token)
     result = consent_respond(token, "accepted")
     if "error" in result:
         raise HTTPException(status_code=410, detail=result["error"])
@@ -171,6 +204,7 @@ def accept(token: str):
 
 @app.post("/api/respond/{token}/decline")
 def decline(token: str):
+    _require_verified(token)
     result = consent_respond(token, "declined")
     if "error" in result:
         raise HTTPException(status_code=410, detail=result["error"])

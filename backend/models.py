@@ -1,5 +1,5 @@
 # backend/models.py
-from sqlalchemy import Column, String, DateTime, create_engine
+from sqlalchemy import Boolean, Column, Integer, String, DateTime, create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from datetime import datetime
 import os
@@ -36,6 +36,23 @@ class ConsentToken(Base):
     used = Column(String, default="false")         # "false" | "true"
     response = Column(String, default="pending")   # pending | accepted | declined
     responded_at = Column(DateTime, nullable=True)
+    attempts = Column(Integer, default=0)          # wrong challenge answers
+    challenge_answer_enc = Column(String, nullable=True)  # Fernet ciphertext
+    verified = Column(Boolean, default=False)      # challenge passed
 
 def init_db():
     Base.metadata.create_all(bind=engine)
+    _ensure_consent_columns()
+
+
+def _ensure_consent_columns():
+    """Add newer ConsentToken columns to databases created before them."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(consent_tokens)"))}
+        if "attempts" not in existing:
+            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN attempts INTEGER DEFAULT 0"))
+        if "challenge_answer_enc" not in existing:
+            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN challenge_answer_enc VARCHAR"))
+        if "verified" not in existing:
+            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN verified BOOLEAN DEFAULT 0"))
