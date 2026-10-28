@@ -126,6 +126,7 @@ def match(request_id: str):
             "ambiguous": is_ambiguous(ranked),
             "resolved_by": resolved_by,
             "candidate_count": len(ranked),
+            "ranked": ranked,
         }
     finally:
         db.close()
