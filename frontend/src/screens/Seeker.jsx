@@ -67,7 +67,7 @@ export default function Seeker() {
         </>
       ) : (
         <div style={{ marginTop: 24 }}>
-          <p><strong>Application filed.</strong> You will only hear back if they consent.</p>
+          <p><strong>Application filed.</strong> Your request is encrypted. The person being sought will receive a private notification. If they decline, you will not be told — that is how we protect them.</p>
           <p style={{ fontSize: 12, color: '#999' }}>Request ID: {requestId}</p>
           <button onClick={refresh} style={{ padding: '8px 16px' }}>Refresh status</button>
           <p style={{ marginTop: 16 }}>Status: <strong>{status}</strong></p>
