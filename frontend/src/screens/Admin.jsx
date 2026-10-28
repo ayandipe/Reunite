@@ -33,6 +33,45 @@ export default function Admin() {
 
       <button onClick={runMatch} style={{ marginTop: 16, padding: '10px 20px' }}>Run match</button>
 
+      {match && match.ranked && (
+        <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse', fontSize: 15 }}>
+          <caption style={{ textAlign: 'left', fontSize: 16, fontWeight: 700, paddingBottom: 8 }}>
+            Ranked candidates (threshold 0.72)
+          </caption>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Candidate</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Score</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Threshold</th>
+            </tr>
+          </thead>
+          <tbody>
+            {match.ranked.map(entry => {
+              const above = entry.score >= 0.72
+              const winner = entry.candidate_id === match.winner_id
+              return (
+                <tr
+                  key={entry.candidate_id}
+                  style={{ backgroundColor: above ? '#e6f6ec' : '#fdecec', fontWeight: winner ? 700 : 400 }}
+                >
+                  <td style={{ padding: 8, fontSize: 15 }}>
+                    {entry.candidate_id}{winner ? ' (winner)' : ''}
+                  </td>
+                  <td style={{ padding: 8, fontSize: 15 }}>{entry.score.toFixed(4)}</td>
+                  <td style={{ padding: 8, fontSize: 15, fontWeight: 700, color: above ? '#0a7a2f' : '#b00020' }}>
+                    {above ? 'Above 0.72' : 'Below 0.72'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      )}
+
+      {match && !match.ranked && (
+        <p style={{ fontSize: 15 }}>Ranked list not available. Re-run match against the updated backend.</p>
+      )}
+
       {match && (
         <pre style={{
           background: '#ffffff',
