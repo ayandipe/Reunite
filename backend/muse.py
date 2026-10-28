@@ -39,6 +39,7 @@ def _live_parse(raw_text: str) -> dict:
             f"Memory: {raw_text}"
         ),
         reasoning={"effort": "medium"},
+        max_output_tokens=8192,
     )
     text = resp.output_text.strip()
     # Strip code fences if the model wrapped it
