@@ -34,7 +34,18 @@ export default function Admin() {
       <button onClick={runMatch} style={{ marginTop: 16, padding: '10px 20px' }}>Run match</button>
 
       {match && (
-        <pre style={{ background: '#f5f5f5', padding: 16, marginTop: 16 }}>
+        <pre style={{
+          background: '#ffffff',
+          color: '#000000',
+          padding: 20,
+          borderRadius: 8,
+          fontSize: 14,
+          lineHeight: 1.5,
+          fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          fontWeight: 600,
+          overflowX: 'auto',
+          border: '2px solid #000000',
+        }}>
           {JSON.stringify(match, null, 2)}
         </pre>
       )}
