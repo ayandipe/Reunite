@@ -30,29 +30,34 @@ class ConsentToken(Base):
     id = Column(String, primary_key=True)
     match_id = Column(String, nullable=False)      # placeholder until Match table exists
     token = Column(String, unique=True, nullable=False, index=True)
-    request_id = Column(String, nullable=False)
-    candidate_id = Column(String, nullable=False)
+    request_id = Column(String, nullable=True)
+    candidate_id = Column(String, nullable=True)
     expires_at = Column(DateTime, nullable=False)
     used = Column(String, default="false")         # "false" | "true"
     response = Column(String, default="pending")   # pending | accepted | declined
     responded_at = Column(DateTime, nullable=True)
     attempts = Column(Integer, default=0)          # wrong challenge answers
-    challenge_answer_enc = Column(String, nullable=True)  # Fernet ciphertext
+    challenge_answer_enc = Column(String, nullable=True)  # Fernet ciphertext (individual only; NULL for group)
     verified = Column(Boolean, default=False)      # challenge passed
+    group_request_id = Column(String, nullable=True)  # set for group tokens
+    slot_index = Column(Integer, nullable=True)       # face-slot index for group tokens
+    recent_photo_path = Column(String, nullable=True)  # SAM-redacted recent photo in uploads/redacted/
+
+
+class GroupRequest(Base):
+    __tablename__ = "group_requests"
+
+    id = Column(String, primary_key=True)              # UUID
+    created_at = Column(DateTime, default=datetime.utcnow)
+    raw_text_enc = Column(String, nullable=False)      # Fernet ciphertext
+    context_enc = Column(String, nullable=False)       # Fernet ciphertext
+    photo_path = Column(String, nullable=True)         # uploads/original/, never served; NULL in names_only mode
+    names_json_enc = Column(String, nullable=False)    # Fernet ciphertext of JSON name list
+    quiz_json_enc = Column(String, nullable=False)     # Fernet ciphertext of exactly 5 {q, a} objects
+    phone_suffix_enc = Column(String, nullable=True)   # Fernet ciphertext, optional
+    birth_year = Column(Integer, nullable=True)        # plaintext class year, not PII
+    contact_enc = Column(String, nullable=True)        # Fernet ciphertext, optional
+    status = Column(String, default="filed")           # filed | matched | partial | complete | expired
 
 def init_db():
     Base.metadata.create_all(bind=engine)
-    _ensure_consent_columns()
-
-
-def _ensure_consent_columns():
-    """Add newer ConsentToken columns to databases created before them."""
-    from sqlalchemy import text
-    with engine.begin() as conn:
-        existing = {row[1] for row in conn.execute(text("PRAGMA table_info(consent_tokens)"))}
-        if "attempts" not in existing:
-            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN attempts INTEGER DEFAULT 0"))
-        if "challenge_answer_enc" not in existing:
-            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN challenge_answer_enc VARCHAR"))
-        if "verified" not in existing:
-            conn.execute(text("ALTER TABLE consent_tokens ADD COLUMN verified BOOLEAN DEFAULT 0"))
