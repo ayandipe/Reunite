@@ -128,7 +128,7 @@ def _live_resolve(seeker: dict, top1: dict, top2: dict) -> str:
         model="muse-wonder-1.0",
         input=prompt,
         reasoning={"effort": "high"},
-        max_output_tokens=10,
+        max_output_tokens=16,
     )
     answer = resp.output_text.strip().upper()
     return top1["candidate_id"] if answer.startswith("A") else top2["candidate_id"]
