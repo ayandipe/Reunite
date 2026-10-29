@@ -1,12 +1,17 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import axios from 'axios'
 
 const API = 'http://localhost:8000'
 
 export default function Admin() {
+  const [searchParams] = useSearchParams()
   const [requestId, setRequestId] = useState('')
   const [match, setMatch] = useState(null)
   const [token, setToken] = useState(null)
+  const [groupId, setGroupId] = useState(searchParams.get('groupId') || '')
+  const [groupMatch, setGroupMatch] = useState(null)
+  const [groupStatus, setGroupStatus] = useState(null)
 
   const runMatch = async () => {
     const res = await axios.post(`${API}/api/match/${requestId}`)
@@ -25,6 +30,17 @@ export default function Admin() {
   const issueToken = async () => {
     const res = await axios.post(`${API}/api/consent/${requestId}?candidate_id=${match.winner_id}`)
     setToken(res.data.token)
+  }
+
+  const runGroupMatch = async () => {
+    const res = await axios.post(`${API}/api/match-group/${groupId}`)
+    setGroupMatch(res.data)
+    setGroupStatus(null)
+  }
+
+  const checkGroupStatus = async () => {
+    const res = await axios.get(`${API}/api/group-status/${groupId}`)
+    setGroupStatus(res.data)
   }
 
   return (
@@ -129,6 +145,59 @@ export default function Admin() {
             http://localhost:5173/respond/{token}
           </code>
         </div>
+      )}
+
+      <h2 style={{ marginTop: 40 }}>Group requests (demo only)</h2>
+
+      <label>Group request ID</label>
+      <input
+        style={{ width: '100%', padding: 8, marginTop: 8 }}
+        value={groupId}
+        onChange={e => setGroupId(e.target.value)}
+        placeholder="paste group_request_id from group submit"
+      />
+
+      <div style={{ marginTop: 16, display: 'flex', gap: 12 }}>
+        <button onClick={runGroupMatch} style={{ padding: '10px 20px' }}>Run group match</button>
+        <button onClick={checkGroupStatus} style={{ padding: '10px 20px' }}>Check status</button>
+      </div>
+
+      {groupMatch && groupMatch.slots && (
+        <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse', fontSize: 15 }}>
+          <caption style={{ textAlign: 'left', fontSize: 16, fontWeight: 700, paddingBottom: 8 }}>
+            Group slots (mode: {groupMatch.mode}, threshold 0.72)
+          </caption>
+          <thead>
+            <tr>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Slot</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Name</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Candidate</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Score</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Threshold</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Token</th>
+            </tr>
+          </thead>
+          <tbody>
+            {groupMatch.slots.map(entry => (
+              <tr key={entry.slot}>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.slot}</td>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.name || '—'}</td>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.candidate_id || '—'}</td>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.score.toFixed(4)}</td>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.threshold_met ? 'Above 0.72' : 'Below 0.72'}</td>
+                <td style={{ padding: 8, fontSize: 15 }}>{entry.token_issued ? 'Issued' : '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      {groupStatus && (
+        <p style={{ marginTop: 16, fontSize: 15 }}>
+          Confirmed: <strong>{groupStatus.confirmed}</strong>
+          {' '}· Pending: <strong>{groupStatus.pending}</strong>
+          {' '}· Declined: <strong>{groupStatus.declined}</strong>
+        </p>
       )}
     </div>
   )
