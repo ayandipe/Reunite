@@ -72,7 +72,7 @@ def _live_sam_boxes(image_bytes: bytes, prompt: str) -> list:
 def _parse_boxes(output: str) -> list:
     """Minimal parser for SAM's special-token output."""
     boxes = []
-    for m in re.finditer(r"\|box;x1=([\d.]+);y1=([\d.]+);x2=([\d.]+);y2=([\d.]+)\|", output):
+    for m in re.finditer(r"\|box;x1=([\d.]+);y1=([\d.]+);x2=([\d.]+);y2=([\d.]+)(?:;[^|]*)?\|", output):
         x1, y1, x2, y2 = map(float, m.groups())
         boxes.append({"x1": x1, "y1": y1, "x2": x2, "y2": y2})
     return boxes
