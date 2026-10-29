@@ -137,6 +137,10 @@ curl -s -o /dev/null -w "original status=%{http_code}\n" "http://localhost:8000/
 Expected: status=404
 
 This is the privacy proof — there is no route that serves the original.
+# Required now: answer the challenge question first
+curl -s -X POST http://localhost:8000/api/respond/$TOK/verify-answer \
+  -H "Content-Type: application/json" -d '{"answer":"71"}'
+echo
 Step 12 — Silent decline
 bash
 
@@ -150,6 +154,11 @@ text
 
 {"status":"closed"}
 {"status":"filed"}       ← still filed. This is the silent decline.
+
+# Required now: answer the challenge question first
+curl -s -X POST http://localhost:8000/api/respond/$TOK/verify-answer \
+  -H "Content-Type: application/json" -d '{"answer":"71"}'
+echo
 
 Step 13 — Accept path (the contrast)
 bash

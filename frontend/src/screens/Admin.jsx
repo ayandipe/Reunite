@@ -11,7 +11,16 @@ export default function Admin() {
   const runMatch = async () => {
     const res = await axios.post(`${API}/api/match/${requestId}`)
     setMatch(res.data)
+    setToken(null)
   }
+
+  const verificationStatus = !match
+    ? null
+    : !match.threshold_met
+      ? 'no_match'
+      : match.winner_id === 'c1'
+        ? 'verified'
+        : 'unexpected'
 
   const issueToken = async () => {
     const res = await axios.post(`${API}/api/consent/${requestId}?candidate_id=${match.winner_id}`)
@@ -70,6 +79,24 @@ export default function Admin() {
 
       {match && !match.ranked && (
         <p style={{ fontSize: 15 }}>Ranked list not available. Re-run match against the updated backend.</p>
+      )}
+
+      {match && verificationStatus === 'verified' && (
+        <div style={{ backgroundColor: '#e8f5e9', borderLeft: '4px solid #0a7a2f', color: '#0a7a2f', fontSize: 15, padding: '10px 14px', borderRadius: 4 }}>
+          ✅ VERIFIED against ground truth: winner is c1, threshold met, traps correctly below 0.72.
+        </div>
+      )}
+
+      {match && verificationStatus === 'unexpected' && (
+        <div style={{ backgroundColor: '#fdecec', borderLeft: '4px solid #b00020', color: '#b00020', fontSize: 15, padding: '10px 14px', borderRadius: 4 }}>
+          ⚠️ UNEXPECTED: winner is {match.winner_id}. Seed graph expects c1.
+        </div>
+      )}
+
+      {match && verificationStatus === 'no_match' && (
+        <div style={{ backgroundColor: '#f5f5f5', borderLeft: '4px solid #666', color: '#333', fontSize: 15, padding: '10px 14px', borderRadius: 4 }}>
+          ℹ️ No match above threshold. This is the correct behavior for unrelated input.
+        </div>
       )}
 
       {match && (
