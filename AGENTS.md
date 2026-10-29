@@ -228,7 +228,7 @@ Validation:
   shows the gray "No match" line.
 - Readback confirms all three states render with distinct colors.
 
-ask 7 — Ground-truth verification line in Admin.jsx
+Task 7 — Ground-truth verification line in Admin.jsx
 
 Add a verification line to frontend/src/screens/Admin.jsx between the ranked
 table and the JSON block.
@@ -336,106 +336,95 @@ route — they already work.
 
 Task 9 — Group request scaffolding (backend only)
 
-Add the group flow alongside the individual one. Shares ConsentToken and
-the existing /api/respond/{token} route.
-Models
+Add the group flow alongside the individual one. Shares `ConsentToken` and
+the existing `/api/respond/{token}` route.
 
-New GroupRequest in backend/models.py:
+#### Models
 
-    id (String, PK, UUID)
+New `GroupRequest` in `backend/models.py`:
 
-    created_at (DateTime)
+- `id` (String, PK, UUID)
+- `created_at` (DateTime)
+- `raw_text_enc` (String, Fernet ciphertext)
+- `context_enc` (String, Fernet ciphertext — e.g. "2005 Methodist High School, Lagos")
+- `photo_path` (String, **nullable** — path in `uploads/original/`, never served;
+  NULL when the seeker did not upload a photo)
+- `names_json_enc` (String, Fernet ciphertext — JSON array of names the seeker typed)
+- `quiz_json_enc` (String, Fernet ciphertext — JSON array of exactly 5 objects,
+  each `{"q": "<question>", "a": "<answer>"}`)
+- `phone_suffix_enc` (String, nullable — Fernet ciphertext, seeker's remembered phone tail)
+- `birth_year` (Integer, nullable — approximate class year, not PII)
+- `contact_enc` (String, nullable — Fernet ciphertext)
+- `status` (String, default `"filed"` — `filed | matched | partial | complete | expired`)
 
-    raw_text_enc (String, Fernet ciphertext)
+Extend `ConsentToken` in `backend/models.py` with three nullable columns:
 
-    context_enc (String, Fernet ciphertext — e.g. "2005 Methodist High School, Lagos")
+- `group_request_id` (String, nullable)
+- `slot_index` (Integer, nullable)
+- `recent_photo_path` (String, nullable — path to the SAM-redacted recent photo,
+  in `uploads/redacted/`. Never the original.)
 
-    photo_path (String — path in uploads/original/, never served)
+Relax `ConsentToken.request_id` and `ConsentToken.candidate_id` to nullable
+so group tokens can leave `request_id` empty while storing the matched
+`candidate_id`. A token with `request_id` set = individual. A token with
+`group_request_id` set = group.
 
-    names_json_enc (String, Fernet ciphertext — JSON array of names the seeker typed)
+#### Routes in `backend/main.py`
 
-    unifier_question_enc (String, Fernet ciphertext)
+**`POST /api/submit-group`** — multipart form with fields:
 
-    unifier_answer_enc (String, Fernet ciphertext)
-
-    status (String, default "filed" — filed | matched | partial | complete | expired)
-
-Extend ConsentToken in backend/models.py with two nullable columns:
-
-    group_request_id (String, nullable)
-
-    slot_index (Integer, nullable)
-
-A token with request_id set = individual. A token with group_request_id
-set = group. Existing individual flow unchanged.
-Routes in backend/main.py
-
-POST /api/submit-group — multipart form with fields:
-
-    raw_text (str)
-
-    context (str)
-
-    names (JSON string of list)
-
-    unifier_question (str)
-
-    unifier_answer (str)
-
-    photo (UploadFile)
+- `raw_text` (str)
+- `context` (str)
+- `names` (JSON string of list of names)
+- `quiz` (JSON string of exactly 5 `{q, a}` objects)
+- `photo` (UploadFile, **optional**)
+- `phone_suffix` (str, optional)
+- `birth_year` (int, optional)
+- `contact` (str, optional)
 
 Behavior:
+- If photo is provided: store at `uploads/original/group_{id}.jpg` (never served),
+  set `photo_path`
+- If photo is omitted: `photo_path = None`, skip file write
+- Encrypt all PII with Fernet (`raw_text_enc`, `context_enc`,
+  `names_json_enc`, `quiz_json_enc`, `phone_suffix_enc`, `contact_enc`)
+- `birth_year` stays plaintext integer (not PII)
+- Insert `GroupRequest` with status `"filed"`
+- Return `{"group_request_id": id, "status": "filed"}`
 
-    Store photo at uploads/original/group_{id}.jpg — never served
+**`POST /api/match-group/{group_request_id}`** — runs the group pipeline:
 
-    Encrypt all PII with Fernet
-
-    Insert GroupRequest with status "filed"
-
-    Return {"group_request_id": id, "status": "filed"}
-
-POST /api/match-group/{group_request_id} — runs the group pipeline:
-
-    Load the group request; decrypt names, context
-
-    Call sam-3.1 with prompt "face" on the stored photo → get face boxes.
-    Store as anonymous slots [{"slot": 0, "box": {...}}, ...]
-
-    Call muse-spark-1.3 with the image + names + context, asking for a JSON
-    mapping {"name": "...", "slot": N} for each name. Unmapped names get
-    slot: null
-
-    For each name with a non-null slot, build a seeker dict
-    {"name": name, "hometown": <extracted from context>, ...} and run
-    rank_candidates against seed_graph.json
-
-    For each slot whose top score ≥ 0.72, create a ConsentToken with:
-
-        group_request_id set
-
-        slot_index set
-
-        challenge_answer_enc = Fernet-encrypted unifier_answer
-
-        verified = false
-
-        attempts = 0
-
-        expires_at = now + 24h
-
-    Update GroupRequest.status:
-
-        "matched" if at least one token was issued
-
-        "filed" if none
-
-    Return:
-
-json
-
+1. Load the group request; decrypt `names`, `context`, and optional
+   `phone_suffix`, `birth_year`, `contact`
+2. **If `photo_path` is not None (photo mode):**
+   a. Call `sam-3.1` with prompt `"face"` on the stored photo → get face boxes.
+      Store as anonymous slots `[{"slot": 0, "box": {...}}, ...]`
+   b. Call `muse-spark-1.3` with the image + names + context, asking for a
+      JSON mapping `{"name": "...", "slot": N}` for each name. Unmapped names
+      get `slot: null`. **Mock branch must be deterministic**: name[i] → slot i
+   c. For each name with a non-null slot, build seeker dict and rank
+3. **If `photo_path` is None (names_only mode):**
+   a. Skip SAM and Muse Spark image calls entirely
+   b. Each name in `names` becomes a slot at its index: `slot = i`, `name = names[i]`
+   c. For each name, build seeker dict and rank
+4. In both modes, for each slot whose top score ≥ 0.72, create a ConsentToken
+   with:
+   - `group_request_id` set
+   - `slot_index` set
+   - `request_id` = NULL
+   - `candidate_id` set to the matched candidate
+   - `verified` = false
+   - `attempts` = 0
+   - `expires_at` = now + 24h
+   - `challenge_answer_enc` = NULL (the quiz lives on GroupRequest)
+5. Update `GroupRequest.status` to `"matched"` if at least one token was issued,
+   `"filed"` if none
+6. Return:
+```json
 {
   "group_request_id": "...",
   "status": "matched",
+  "mode": "photo" | "names_only",
   "slots": [
     {"slot": 0, "name": "Chidi", "candidate_id": "c1",
      "score": 0.85, "threshold_met": true, "token_issued": true},
@@ -457,85 +446,169 @@ json
 
     Never return names.
 
-Extend /api/respond/{token} for group tokens
+GET /api/group-confirmed/{group_request_id} — returns confirmed slots only,
+each with:
 
-If the token has group_request_id set, the redacted_summary must be:
+    slot_index
 
-    "A former classmate is looking for people from [decrypted context]. You
-    appear to be [name] in a group photo they filed."
+    name (from the seeker's own names list at that index — never the recipient's name)
 
-    The [name] comes from the group request's names_json_enc at slot_index
+    recent_photo_url (the redacted recent photo, or null if not uploaded)
 
-    The [context] comes from context_enc
+    channel_id (or null if no channel opened yet)
 
-    The challenge question shown to the recipient must be the
-    unifier_question_enc (not the phone digit prompt)
+The seeker uses this to compare the redacted recent photo against their own
+group photo. The seeker makes the final judgment. The recipient is never told
+the outcome unless a channel is opened.
+Extend GET /api/respond/{token} for group tokens
 
-    Everything else (verify-answer, accept, decline, silent decline) works
-    identically for group tokens and individual tokens
+If the token has group_request_id set, the response must include:
 
+    redacted_summary: "A former classmate is looking for people from
+    [decrypted context]. You appear to be [name] in a group photo they filed."
+    where [name] comes from the group request's names_json_enc at
+    slot_index
+
+    quiz: JSON array of the 5 questions (decrypted from quiz_json_enc),
+    with answers stripped out — answers never leave the server
+
+    pass_threshold: 4
+
+    expires_at: same as before
+
+Individual tokens return the existing shape unchanged (no quiz key).
+Extend POST /api/respond/{token}/verify-answer for group tokens
+
+For group tokens:
+
+    Load the token's group_request_id → load the group → decrypt quiz_json_enc
+
+    Accept a JSON body: {"answers": ["answer1", "answer2", "answer3", "answer4", "answer5"]}
+
+    Compare each answer to the stored answer (case-insensitive, trimmed)
+
+    Count matches
+
+    If correct >= 4:
+
+        Set token.verified = true
+
+        Return {"verified": true, "correct": N, "required": 4}
+
+    If correct < 4 and this is the first failure for this token:
+
+        Increment attempts
+
+        Return 403 {"detail": "not_enough_correct", "correct": N, "required": 4}
+
+        Do NOT reveal which answers were wrong — only the total count
+
+    If correct < 4 and attempts >= 1 (second failure):
+
+        Call consent_respond(token, "declined") to close the token silently
+
+        Return 410 {"detail": "locked"}
+
+For individual tokens:
+
+    Keep the existing single-answer behavior unchanged
+
+New route — POST /api/respond/{token}/recent-photo
+
+After the recipient has passed the quiz (token.verified = true) but before
+accept/decline:
+
+    Accept a photo UploadFile
+
+    Run SAM 3.1 with prompt "face" on the uploaded image
+
+    Store the original in uploads/original/ (never served)
+
+    Store the SAM-redacted version in uploads/redacted/
+
+    Set token.recent_photo_path to the redacted path
+
+    Return {"redacted_url": "/api/redacted/{filename}"} so the recipient can
+    see their own preview
+
+The recipient's recent photo is optional — they can accept or decline
+without uploading one.
+
+Important design note: SAM 3.1 redacts faces but does not perform
+face recognition. The system does not automatically compare the recipient's
+recent photo to the group photo. The seeker makes that comparison by eye,
+using /api/group-confirmed/{id}. This is the correct design for a
+high-stakes family reconnection case — the human is the judge, not the model.
 Shared rules
 
-    The /api/respond/{token}/verify-answer route must compare the recipient's
-    answer against challenge_answer_enc for both individual and group
-    tokens. No new route needed — the existing route already does this.
+    The /api/respond/{token}/verify-answer route dispatches on
+    token.group_request_id: if set, use the 4-of-5 quiz path; if not, use
+    the existing single-answer path
 
-    Three wrong attempts closes the token as declined (existing behavior).
+    Accept/decline reject unverified tokens with 403 (existing behavior,
+    unchanged for both individual and group)
 
-    Accept/decline reject unverified tokens with 403 (existing behavior).
+    Three wrong attempts still applies to individual tokens; group tokens
+    use the two-attempt lockout above
+
+    Decline remains silent for both flows: seeker status stays filed,
+    group counts decrement but never name who declined
+
+    There is no route that serves uploads/original/ files —
+    the recent photo original is never reachable by any client
 
 Validation
 
     POST /api/submit-group returns a valid group_request_id
 
-    POST /api/match-group/{id} returns the slot array with
-    token_issued: true for at least one above-threshold slot
+    POST /api/submit-group without a photo returns a valid id and
+    photo_path is NULL
 
-    A group token, opened at /api/respond/{token}, shows the unifier question
-    and the group-aware redacted summary
+    - `POST /api/match-group/{id}` returns the slot array with
+  `token_issued: true` for at least one above-threshold slot when the
+  submit includes clues that align with a seed candidate. For the
+  demo, use `phone_suffix="4471"` and `birth_year=1988` with a name
+  that matches a seed candidate (e.g. "Layla") and context that
+  includes "Mosul". A 2005 class year (1988 birth year) aligns with
+  candidate `c1`; using birth_year=2005 (22 years later) correctly
+  fails to match, which is the intended threshold behavior — it proves
+  the year weight is doing real work.
 
-    Answering correctly + accept works; answering wrong three times closes the
-    token silently
+    POST /api/match-group/{id} in names_only mode issues tokens without
+    calling SAM or Muse Spark, and returns "mode": "names_only"
+
+    POST /api/match-group/{id} in photo mode returns "mode": "photo"
+
+    A group token, opened at GET /api/respond/{token}, returns
+    redacted_summary, quiz (questions only, no answers), and
+    pass_threshold: 4
+
+    Submitting 4 correct + 1 wrong answer → {"verified": true, "correct": 4}
+
+    Submitting 3 correct + 2 wrong answers twice → first attempt 403 with
+    correct count only, second attempt 410 locked
+
+    POST /api/respond/{token}/recent-photo after verify returns a redacted
+    URL; before verify returns 403
 
     GET /api/group-status/{id} returns counts only, never names
 
-    The individual consent flow still works end-to-end (submit → match →
-    challenge → accept/decline)
+    GET /api/group-confirmed/{id} returns confirmed slots with
+    recent_photo_url when uploaded, null otherwise
+
+    The individual consent flow still works end-to-end: submit → match →
+    single-answer challenge → accept/decline
 
     uploads/original/group_*.jpg is never served by any route
+
+    uploads/original/ recent photos are never served by any route
+
+    Mock name-to-slot mapping is deterministic (name[i] → slot i)
 
 Scope restriction: BACKEND ONLY. Do not modify frontend in this task.
 Do not modify the individual consent flow in Respond.jsx or Seeker.jsx.
 Do not add a group UI — that is a future task.
-When Working on This Project
 
-    Read this AGENTS.md and the relevant files before changing anything.
-
-    Use /plan — propose the change before editing any file.
-
-    Preserve mock branches.
-
-    Never add a -contributor model ID.
-
-    Never serve uploads/original/.
-
-    Never make decline visible to the seeker.
-
-    Commit small.
-
-Do Not Do
-
-    Do not invent new routes beyond what each task asks for.
-
-    Do not change scoring weights or the 0.72 threshold.
-
-    Do not add image-analysis features to SAM (redaction and face detection only).
-
-    Do not use Muse Wonder for anything except ambiguity tie-break.
-
-    Do not integrate Twilio, Messenger Platform API, or external notification service.
-
-    Do not build a group UI in Task 9 — backend only.
 
 Task 10 — Group request frontend (frontend only)
 

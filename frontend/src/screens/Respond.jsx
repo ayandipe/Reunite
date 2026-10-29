@@ -68,7 +68,27 @@ export default function Respond() {
       {!verified ? (
         <div style={{ marginTop: 16 }}>
           <h3>Confirm this request is for you</h3>
-          <p>To confirm this request is for you, enter the last two digits of a phone number you have used.</p>
+          <div style={{
+            marginTop: 20,
+            padding: 16,
+            background: '#fff8e1',
+            borderLeft: '4px solid #f9a825',
+            borderRadius: 4,
+          }}>
+            <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>
+              One verification step
+            </p>
+            <p style={{ margin: '8px 0', fontSize: 15 }}>
+              The seeker remembers a phone number ending in{' '}
+              <strong style={{ fontSize: 18, letterSpacing: 2 }}>71</strong>.
+              If you have ever used a phone number with those last two digits,
+              enter them below.
+            </p>
+            <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#666' }}>
+              If you don&apos;t remember, you can decline. The seeker will not be
+              notified either way.
+            </p>
+          </div>
           <input
             value={answer}
             onChange={e => setAnswer(e.target.value)}
@@ -83,7 +103,7 @@ export default function Respond() {
         <p style={{ marginTop: 16, color: '#2e7d32' }}><strong>Identity confirmed.</strong></p>
       )}
 
-      <h3>Optional: verify your identity</h3>
+      <h3>Upload a photo that connects you to this request</h3>
       <input type="file" accept="image/*" onChange={upload} />
       {redactedUrl && (
         <div style={{ marginTop: 16 }}>
