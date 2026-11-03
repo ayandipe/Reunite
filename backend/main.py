@@ -436,6 +436,7 @@ def match_group(group_request_id: str):
         group = db.query(GroupRequest).filter(GroupRequest.id == group_request_id).first()
         if not group:
             raise HTTPException(status_code=404, detail="not found")
+        db.query(ConsentToken).filter(ConsentToken.group_request_id == group_request_id).delete(synchronize_session=False)
         names = json.loads(fernet.decrypt(group.names_json_enc.encode()).decode())
         context = fernet.decrypt(group.context_enc.encode()).decode()
         phone_suffix = fernet.decrypt(group.phone_suffix_enc.encode()).decode() if group.phone_suffix_enc else None
