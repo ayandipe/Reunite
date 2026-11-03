@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import axios from 'axios'
 
 const API = 'http://localhost:8000'
@@ -16,6 +15,7 @@ export default function GroupSeeker() {
   const [birthYear, setBirthYear] = useState('')
   const [contact, setContact] = useState('')
   const [groupId, setGroupId] = useState(null)
+  const [groupStatus, setGroupStatus] = useState(null)
   const [error, setError] = useState(null)
 
   const setQuizField = (index, field, value) => {
@@ -37,9 +37,19 @@ export default function GroupSeeker() {
     try {
       const res = await axios.post(`${API}/api/submit-group`, form)
       setGroupId(res.data.group_request_id)
+      try {
+        await axios.post(`${API}/api/match-group/${res.data.group_request_id}`)
+      } catch {
+        // Silent auto-match: user only sees the filed confirmation.
+      }
     } catch (e) {
       setError(e.response?.data?.detail || 'submit failed')
     }
+  }
+
+  const checkGroupStatus = async () => {
+    const res = await axios.get(`${API}/api/group-status/${groupId}`)
+    setGroupStatus(res.data)
   }
 
   return (
@@ -142,10 +152,16 @@ export default function GroupSeeker() {
           </button>
         </>
       ) : (
-        <div style={{ marginTop: 24 }}>
-          <p><strong>Group request filed.</strong></p>
-          <p style={{ fontSize: 12, color: '#999' }}>Group ID: {groupId}</p>
-          <Link to={`/admin?groupId=${groupId}`}>Open in Admin to run the match</Link>
+        <div style={{ marginTop: 24, background: '#ffffff' }}>
+          <p style={{ color: '#000000', fontSize: 15 }}>Your group request has been filed.</p>
+          <p style={{ color: '#000000', fontSize: 15, background: '#f5f5f5', padding: 10, fontFamily: 'monospace', fontWeight: 700, wordBreak: 'break-all' }}>Group request ID: {groupId}</p>
+          <p style={{ color: '#000000', fontSize: 15 }}>You will be notified if any group member accepts the request. Do not share this ID publicly.</p>
+          <button onClick={checkGroupStatus} style={{ padding: '8px 16px' }}>Refresh status</button>
+          {groupStatus && (
+            <p style={{ color: '#000000', fontSize: 15, marginTop: 12 }}>
+              Confirmed: {groupStatus.confirmed} · Pending: {groupStatus.pending} · Declined: {groupStatus.declined}
+            </p>
+          )}
         </div>
       )}
     </div>

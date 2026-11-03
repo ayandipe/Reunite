@@ -46,7 +46,7 @@ export default function Admin() {
   return (
     <div style={{ maxWidth: 800, margin: '40px auto', padding: 24 }}>
       <h1>Admin (demo only)</h1>
-      <p style={{ color: '#999', fontSize: 12 }}>Hidden panel. Used to trigger the matching engine live for judges.</p>
+      <p style={{ color: '#333', fontSize: 12 }}>Hidden panel. Used to trigger the matching engine live for judges.</p>
 
       <label>Request ID</label>
       <input
@@ -79,10 +79,10 @@ export default function Admin() {
                   key={entry.candidate_id}
                   style={{ backgroundColor: above ? '#e6f6ec' : '#fdecec', fontWeight: winner ? 700 : 400 }}
                 >
-                  <td style={{ padding: 8, fontSize: 15 }}>
+                  <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>
                     {entry.candidate_id}{winner ? ' (winner)' : ''}
                   </td>
-                  <td style={{ padding: 8, fontSize: 15 }}>{entry.score.toFixed(4)}</td>
+                  <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.score.toFixed(4)}</td>
                   <td style={{ padding: 8, fontSize: 15, fontWeight: 700, color: above ? '#0a7a2f' : '#b00020' }}>
                     {above ? 'Above 0.72' : 'Below 0.72'}
                   </td>
@@ -141,13 +141,14 @@ export default function Admin() {
       {token && (
         <div style={{ marginTop: 16 }}>
           <p><strong>Recipient link:</strong></p>
-          <code style={{ background: '#f5f5f5', padding: 8, display: 'block' }}>
+          <code style={{ color: '#000000', backgroundColor: '#f5f5f5', padding: 8, fontSize: 14, fontWeight: 600, fontFamily: 'monospace', wordBreak: 'break-all', display: 'block' }}>
             http://localhost:5173/respond/{token}
           </code>
         </div>
       )}
 
       <h2 style={{ marginTop: 40 }}>Group requests (demo only)</h2>
+      <p style={{ color: '#333', fontSize: 15 }}>Group request inspection (judge/debug view). Users never see this screen. Paste a group_request_id to see what the matching engine did under the hood.</p>
 
       <label>Group request ID</label>
       <input
@@ -163,33 +164,42 @@ export default function Admin() {
       </div>
 
       {groupMatch && groupMatch.slots && (
+        <>
+        <p style={{ color: '#333', fontSize: 14, marginTop: 16 }}>Demo view — in production, token URLs are delivered directly to recipients, never shown in any UI.</p>
         <table style={{ width: '100%', marginTop: 16, borderCollapse: 'collapse', fontSize: 15 }}>
           <caption style={{ textAlign: 'left', fontSize: 16, fontWeight: 700, paddingBottom: 8 }}>
             Group slots (mode: {groupMatch.mode}, threshold 0.72)
           </caption>
           <thead>
             <tr>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Slot</th>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Name</th>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Candidate</th>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Score</th>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Threshold</th>
-              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #000' }}>Token</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Slot</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Name</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Candidate</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Score</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Threshold</th>
+              <th style={{ textAlign: 'left', fontWeight: 700, fontSize: 15, padding: 8, borderBottom: '2px solid #ffffff' }}>Token</th>
             </tr>
           </thead>
           <tbody>
             {groupMatch.slots.map(entry => (
               <tr key={entry.slot}>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.slot}</td>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.name || '—'}</td>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.candidate_id || '—'}</td>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.score.toFixed(4)}</td>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.threshold_met ? 'Above 0.72' : 'Below 0.72'}</td>
-                <td style={{ padding: 8, fontSize: 15 }}>{entry.token_issued ? 'Issued' : '—'}</td>
+                <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.slot}</td>
+                <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.name || '—'}</td>
+                <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.candidate_id || '—'}</td>
+                <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.score.toFixed(4)}</td>
+                <td style={{ padding: 8, fontSize: 15, color: '#000000' }}>{entry.threshold_met ? 'Above 0.72' : 'Below 0.72'}</td>
+                <td style={{ color: '#ffffff', padding: 8 }}>
+                  {entry.token_issued ? (
+                    <a href={entry.token_url} target="_blank" style={{ color: '#90caf9' }}>
+                      Open recipient view →
+                    </a>
+                  ) : 'Not issued'}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
+        </>
       )}
 
       {groupStatus && (

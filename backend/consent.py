@@ -108,10 +108,12 @@ def respond(token: str, decision: str) -> dict:
         row.responded_at = datetime.utcnow()
 
         if decision == "accepted":
-            # Only on acceptance does the seeker's request move forward
-            req = db.query(SeekerRequest).filter(SeekerRequest.id == row.request_id).first()
-            if req:
-                req.status = "accepted"
+            # Only on acceptance does the seeker's request move forward.
+            # Group tokens have request_id=None: leave group status untouched.
+            if row.request_id:
+                req = db.query(SeekerRequest).filter(SeekerRequest.id == row.request_id).first()
+                if req:
+                    req.status = "accepted"
 
         db.commit()
 

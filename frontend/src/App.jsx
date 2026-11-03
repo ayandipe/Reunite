@@ -3,6 +3,7 @@ import Seeker from './screens/Seeker'
 import Respond from './screens/Respond'
 import Admin from './screens/Admin'
 import GroupSeeker from './screens/GroupSeeker'
+import Channel from './screens/Channel'
 import './App.css'
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
         <Route path="/group" element={<GroupSeeker />} />
         <Route path="/respond/:token" element={<Respond />} />
         <Route path="/admin" element={<Admin />} />
+        <Route path="/channel/:channelId" element={<Channel />} />
       </Routes>
     </BrowserRouter>
   )

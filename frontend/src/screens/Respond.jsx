@@ -17,6 +17,7 @@ export default function Respond() {
   const [answers, setAnswers] = useState(['', '', '', '', ''])
   const [quizError, setQuizError] = useState(null)
   const [quizLocked, setQuizLocked] = useState(false)
+  const [channelId, setChannelId] = useState(null)
 
   useEffect(() => {
     axios.get(`${API}/api/respond/${token}`)
@@ -73,7 +74,11 @@ export default function Respond() {
   }
 
   const accept = async () => {
-    await axios.post(`${API}/api/respond/${token}/accept`)
+    const res = await axios.post(`${API}/api/respond/${token}/accept`, {
+      recipient_contact: null,
+      share_contact: false,
+    })
+    setChannelId(res.data.channel_id || null)
     setResult('accepted')
   }
 
@@ -87,8 +92,8 @@ export default function Respond() {
 
   return (
     <div style={{ maxWidth: 640, margin: '40px auto', padding: 24 }}>
-      <h1>Someone has initiated a family reconnection request</h1>
-      <p style={{ background: '#f5f5f5', padding: 16, borderRadius: 8 }}>{summary.redacted_summary}</p>
+      <h1 style={{ color: '#000000' }}>Someone has initiated a family reconnection request</h1>
+      <p style={{ color: '#000000', background: '#f5f5f5', padding: 16, borderRadius: 8 }}>{summary.redacted_summary}</p>
 
       {!verified ? (
         Array.isArray(summary.quiz) ? (
@@ -123,16 +128,16 @@ export default function Respond() {
               borderLeft: '4px solid #f9a825',
               borderRadius: 4,
             }}>
-              <p style={{ margin: 0, fontWeight: 700, fontSize: 15 }}>
+              <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#000000' }}>
                 One verification step
               </p>
-              <p style={{ margin: '8px 0', fontSize: 15 }}>
+              <p style={{ margin: '8px 0', fontSize: 15, color: '#000000' }}>
                 The seeker remembers a phone number ending in{' '}
-                <strong style={{ fontSize: 18, letterSpacing: 2 }}>71</strong>.
+                <strong style={{ fontSize: 18, letterSpacing: 2, color: '#000000' }}>71</strong>.
                 If you have ever used a phone number with those last two digits,
                 enter them below.
               </p>
-              <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#666' }}>
+              <p style={{ margin: '4px 0 12px', fontSize: 13, color: '#333' }}>
                 If you don&apos;t remember, you can decline. The seeker will not be
                 notified either way.
               </p>
@@ -149,14 +154,14 @@ export default function Respond() {
           </div>
         )
       ) : (
-        <p style={{ marginTop: 16, color: '#2e7d32' }}><strong>Identity confirmed.</strong></p>
+        <p style={{ marginTop: 16, color: '#000000' }}><strong>Identity confirmed.</strong></p>
       )}
 
       <h3>Upload a photo that connects you to this request</h3>
       <input type="file" accept="image/*" onChange={upload} />
       {redactedUrl && (
         <div style={{ marginTop: 16 }}>
-          <p style={{ fontSize: 12, color: '#999' }}>Redacted preview (only you and the seeker see this — never the original):</p>
+          <p style={{ fontSize: 12, color: '#333' }}>Redacted preview (only you and the seeker see this — never the original):</p>
           <img src={redactedUrl} alt="redacted" style={{ maxWidth: 300, border: '1px solid #ddd' }} />
         </div>
       )}
@@ -172,10 +177,15 @@ export default function Respond() {
             </button>
           </div>
         ) : (
-          <p style={{ marginTop: 24, color: '#555' }}>Answer the confirmation question above to unlock Accept and Decline.</p>
+          <p style={{ marginTop: 24, color: '#333' }}>Answer the confirmation question above to unlock Accept and Decline.</p>
         )
       ) : (
-        <p style={{ marginTop: 24 }}><strong>{result === 'accepted' ? 'Consent given. A secure channel is open.' : 'Request closed.'}</strong></p>
+        <div style={{ marginTop: 24 }}>
+          <p><strong>{result === 'accepted' ? 'Consent given. A secure channel is open.' : 'Request closed.'}</strong></p>
+          {result === 'accepted' && channelId && (
+            <a href={`/channel/${channelId}?viewer=recipient`}>Open secure channel →</a>
+          )}
+        </div>
       )}
     </div>
   )

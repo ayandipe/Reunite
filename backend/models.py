@@ -59,5 +59,30 @@ class GroupRequest(Base):
     contact_enc = Column(String, nullable=True)        # Fernet ciphertext, optional
     status = Column(String, default="filed")           # filed | matched | partial | complete | expired
 
+class Channel(Base):
+    __tablename__ = "channels"
+
+    id = Column(String, primary_key=True)              # UUID
+    consent_token_id = Column(String, nullable=False)
+    seeker_request_id = Column(String, nullable=True)
+    group_request_id = Column(String, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    seeker_handle_enc = Column(String, nullable=False)      # Fernet ciphertext ("Seeker")
+    recipient_handle_enc = Column(String, nullable=False)   # Fernet ciphertext ("Recipient")
+    recipient_contact_enc = Column(String, nullable=True)   # Fernet ciphertext, nullable
+    seeker_confirmed = Column(Boolean, default=False)
+    contact_revealed = Column(Boolean, default=False)
+
+
+class ChannelMessage(Base):
+    __tablename__ = "channel_messages"
+
+    id = Column(String, primary_key=True)              # UUID
+    channel_id = Column(String, nullable=False)
+    sender = Column(String, nullable=False)            # seeker | recipient
+    text_enc = Column(String, nullable=False)          # Fernet ciphertext
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 def init_db():
     Base.metadata.create_all(bind=engine)

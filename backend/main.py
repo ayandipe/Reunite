@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-import os, secrets, uuid
+import os, re, secrets, uuid
 from backend.crypto import fernet
 from backend.consent import (
     create_token,
@@ -21,7 +21,7 @@ from backend.matching import rank_candidates, is_ambiguous, threshold_met
 from backend.muse import parse_memory, MUSE_MODE, resolve_ambiguity
 import json
 
-from backend.models import SessionLocal, SeekerRequest, GroupRequest, ConsentToken, init_db
+from backend.models import SessionLocal, SeekerRequest, GroupRequest, ConsentToken, Channel, ChannelMessage, init_db
 from backend.sam import UPLOAD_REDACTED, UPLOAD_ORIG
 
 load_dotenv()
@@ -261,13 +261,191 @@ def _require_verified(token: str):
         raise HTTPException(status_code=403, detail="verification_required")
 
 
+class AcceptBody(BaseModel):
+    recipient_contact: str | None = None
+    share_contact: bool = False
+
+
 @app.post("/api/respond/{token}/accept")
-def accept(token: str):
+def accept(token: str, body: AcceptBody | None = None):
     _require_verified(token)
     result = consent_respond(token, "accepted")
     if "error" in result:
         raise HTTPException(status_code=410, detail=result["error"])
-    return result
+    row = get_token(token)
+    db = SessionLocal()
+    try:
+        existing = db.query(Channel).filter(Channel.consent_token_id == row.id).first()
+        if existing:
+            return {"status": "closed", "channel_id": existing.id}
+        contact_enc = None
+        if body and body.share_contact and body.recipient_contact:
+            contact_enc = fernet.encrypt(body.recipient_contact.encode()).decode()
+        channel = Channel(
+            id=str(uuid.uuid4()),
+            consent_token_id=row.id,
+            seeker_request_id=row.request_id,
+            group_request_id=getattr(row, "group_request_id", None),
+            seeker_handle_enc=fernet.encrypt(b"Seeker").decode(),
+            recipient_handle_enc=fernet.encrypt(b"Recipient").decode(),
+            recipient_contact_enc=contact_enc,
+            seeker_confirmed=False,
+            contact_revealed=False,
+        )
+        db.add(channel)
+        db.commit()
+        channel_id = channel.id
+    finally:
+        db.close()
+    return {"status": "closed", "channel_id": channel_id}
+
+
+CONTACT_PATTERNS = [
+    r"\d[\d\s\-\.\(\)]{6,}\d",
+    r"\S+@\S+\.\S+",
+    r"https?://\S+",
+    r"www\.\S+",
+    r"wa\.me/\S+",
+    r"t\.me/\S+",
+]
+
+
+def contains_contact(text: str) -> bool:
+    return any(re.search(p, text, re.IGNORECASE) for p in CONTACT_PATTERNS)
+
+
+def _channel_public(channel: Channel) -> dict:
+    out = {
+        "created_at": channel.created_at.isoformat() if channel.created_at else None,
+        "seeker_confirmed": channel.seeker_confirmed,
+        "contact_revealed": channel.contact_revealed,
+        "seeker_handle": fernet.decrypt(channel.seeker_handle_enc.encode()).decode(),
+        "recipient_handle": fernet.decrypt(channel.recipient_handle_enc.encode()).decode(),
+    }
+    if channel.contact_revealed and channel.recipient_contact_enc:
+        out["recipient_contact"] = fernet.decrypt(channel.recipient_contact_enc.encode()).decode()
+    return out
+
+
+@app.get("/api/channel/{channel_id}")
+def get_channel(channel_id: str, viewer: str = "seeker"):
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="not found")
+        return _channel_public(channel)
+    finally:
+        db.close()
+
+
+@app.post("/api/channel/{channel_id}/confirm-seeker")
+def confirm_seeker(channel_id: str):
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="not found")
+        channel.seeker_confirmed = True
+        db.commit()
+        contact = (
+            fernet.decrypt(channel.recipient_contact_enc.encode()).decode()
+            if channel.recipient_contact_enc else None
+        )
+    finally:
+        db.close()
+    return {"confirmed": True, "recipient_contact": contact}
+
+
+class ShareContactBody(BaseModel):
+    recipient_contact: str | None = None
+    share_contact: bool = False
+
+
+@app.post("/api/channel/{channel_id}/share-contact")
+def share_contact(channel_id: str, body: ShareContactBody):
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="not found")
+        if body.share_contact and body.recipient_contact:
+            channel.recipient_contact_enc = fernet.encrypt(body.recipient_contact.encode()).decode()
+            channel.contact_revealed = True
+        db.commit()
+        shared = bool(body.share_contact and body.recipient_contact)
+    finally:
+        db.close()
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        revealed = bool(channel.contact_revealed)
+    finally:
+        db.close()
+    return {"shared": shared, "contact_revealed": revealed}
+
+
+class ChannelMessageBody(BaseModel):
+    sender: str
+    text: str
+
+
+@app.post("/api/channel/{channel_id}/message")
+def post_channel_message(channel_id: str, body: ChannelMessageBody):
+    if body.sender not in ("seeker", "recipient"):
+        raise HTTPException(status_code=400, detail="invalid_sender")
+    if contains_contact(body.text or ""):
+        return JSONResponse(
+            status_code=400,
+            content={
+                "detail": "contact_blocked",
+                "reason": "Contact details cannot be shared in chat. Use the confirm flow to reveal a verified contact.",
+            },
+        )
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="not found")
+        msg = ChannelMessage(
+            id=str(uuid.uuid4()),
+            channel_id=channel_id,
+            sender=body.sender,
+            text_enc=fernet.encrypt((body.text or "").encode()).decode(),
+        )
+        db.add(msg)
+        db.commit()
+        created_at = msg.created_at.isoformat() if msg.created_at else None
+        msg_id = msg.id
+    finally:
+        db.close()
+    return {"id": msg_id, "sender": body.sender, "text": body.text, "created_at": created_at}
+
+
+@app.get("/api/channel/{channel_id}/messages")
+def list_channel_messages(channel_id: str):
+    db = SessionLocal()
+    try:
+        channel = db.query(Channel).filter(Channel.id == channel_id).first()
+        if not channel:
+            raise HTTPException(status_code=404, detail="not found")
+        rows = (
+            db.query(ChannelMessage)
+            .filter(ChannelMessage.channel_id == channel_id)
+            .order_by(ChannelMessage.created_at.asc())
+            .all()
+        )
+        out = [
+            {
+                "sender": m.sender,
+                "text": fernet.decrypt(m.text_enc.encode()).decode(),
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in rows
+        ]
+    finally:
+        db.close()
+    return out
 
 
 @app.post("/api/respond/{token}/decline")
@@ -465,6 +643,7 @@ def match_group(group_request_id: str):
                 out_slots.append({
                     "slot": slot, "name": None, "candidate_id": None,
                     "score": 0.0, "threshold_met": False, "token_issued": False,
+                    "token_url": None,
                 })
                 continue
             seeker = {
@@ -475,6 +654,7 @@ def match_group(group_request_id: str):
             top = ranked[0]
             met = threshold_met(top["score"])
             token_issued = False
+            token_url = None
             if met:
                 token = secrets.token_urlsafe(32)
                 db.add(ConsentToken(
@@ -493,10 +673,12 @@ def match_group(group_request_id: str):
                     slot_index=slot,
                 ))
                 token_issued = True
+                token_url = f"/respond/{token}"
                 issued += 1
             out_slots.append({
                 "slot": slot, "name": name, "candidate_id": top["candidate_id"],
                 "score": top["score"], "threshold_met": met, "token_issued": token_issued,
+                "token_url": token_url,
             })
         group.status = "matched" if issued else "filed"
         db.commit()
