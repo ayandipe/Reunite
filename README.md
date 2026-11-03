@@ -6,6 +6,8 @@ Consent, not search, is the only key that opens the door.
 
 
 
+
+
 ## The Problem
 
 Search for a person on Facebook, Instagram, or WhatsApp today, and you get dozens of closely related results. Same name. Similar profile. Similar face. You cannot tell which one is the person you are looking for. People send friend requests to the wrong profile every day — they land on a clone, a scammer, or someone who simply shares the same name.
@@ -21,6 +23,8 @@ There is no secure, consent-first framework to turn a desperate search into a sa
 Reunite is a privacy-first reconnection bridge built on Meta's AI. It is a **Blind Notification Bridge**, not a search engine.
 
 A displaced person files a confidential request with fragmented memories — a name, a hometown, a phone number tail, a birth year. They never see a list of profiles. The system matches in the background. The person being sought receives a private, redacted notification. They see only what they need to recognize themselves. They choose to accept — or to decline.
+
+"The candidate graph is four mock profiles. Everything downstream — the scoring, the threshold, the Muse Wonder tie-break, the consent gate, the payment flow — is real code doing real work on those four profiles. If Meta plugged in their actual social graph tomorrow, the engine would work identically — it's just four profiles instead of two billion."
 
 **If they decline, the seeker is never told a match was ever found.** That is the privacy guarantee.
 
