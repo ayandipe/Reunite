@@ -92,7 +92,7 @@ export default function Respond() {
 
   return (
     <div style={{ maxWidth: 640, margin: '40px auto', padding: 24 }}>
-      <h1 style={{ color: '#000000' }}>Someone has initiated a family reconnection request</h1>
+      <h1 style={{ color: '#f5f5f5' }}>Someone has initiated a group reconnection request</h1>
       <p style={{ color: '#000000', background: '#f5f5f5', padding: 16, borderRadius: 8 }}>{summary.redacted_summary}</p>
 
       {!verified ? (
